@@ -1,10 +1,13 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { Upload, FileJson, AlertCircle } from 'lucide-react'
+import { Upload, FileJson, AlertCircle, Cloud, Loader2 } from 'lucide-react'
 import { parseCommentsJson, type ParsedResult } from '@/lib/comments'
 import { Button } from '@/components/ui/button'
 import { PoweredBy } from './powered-by'
+
+const RESULTS_URL =
+  'https://raw.githubusercontent.com/TETRIX8/InstaScrape-Results/refs/heads/main/comments_results.json'
 
 function makeDemoData(): ParsedResult {
   const first = [
@@ -54,6 +57,27 @@ export function FileUpload({ onLoaded }: { onLoaded: (r: ParsedResult) => void }
   const inputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+  const [fetching, setFetching] = useState(false)
+
+  const loadFromUrl = useCallback(async () => {
+    setError(null)
+    setFetching(true)
+    try {
+      const res = await fetch(RESULTS_URL, { cache: 'no-store' })
+      if (!res.ok) throw new Error('bad status')
+      const json = await res.json()
+      const result = parseCommentsJson(json)
+      if (result.comments.length === 0) {
+        setError('По ссылке не найдено комментариев.')
+        return
+      }
+      onLoaded(result)
+    } catch {
+      setError('Не удалось загрузить данные по ссылке. Проверьте интернет или загрузите файл вручную.')
+    } finally {
+      setFetching(false)
+    }
+  }, [onLoaded])
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -84,6 +108,26 @@ export function FileUpload({ onLoaded }: { onLoaded: (r: ParsedResult) => void }
           Загрузите комментарии
         </p>
 
+        <Button
+          size="lg"
+          onClick={loadFromUrl}
+          disabled={fetching}
+          className="mt-10 h-14 w-full gap-2 text-base"
+        >
+          {fetching ? (
+            <Loader2 className="size-5 animate-spin" aria-hidden="true" />
+          ) : (
+            <Cloud className="size-5" aria-hidden="true" />
+          )}
+          {fetching ? 'Загружаем результаты…' : 'Загрузить конкурс МОКСУ'}
+        </Button>
+
+        <div className="my-6 flex items-center gap-4 text-xs uppercase tracking-widest text-muted-foreground">
+          <span className="h-px flex-1 bg-border" />
+          или свой файл
+          <span className="h-px flex-1 bg-border" />
+        </div>
+
         <label
           onDragOver={(e) => {
             e.preventDefault()
@@ -96,7 +140,7 @@ export function FileUpload({ onLoaded }: { onLoaded: (r: ParsedResult) => void }
             const file = e.dataTransfer.files?.[0]
             if (file) handleFile(file)
           }}
-          className={`group mt-10 flex cursor-pointer flex-col items-center justify-center gap-4 rounded-3xl border-2 border-dashed p-10 transition-colors ${
+          className={`group flex cursor-pointer flex-col items-center justify-center gap-4 rounded-3xl border-2 border-dashed p-10 transition-colors ${
             dragging
               ? 'border-primary bg-primary/10'
               : 'border-border bg-card hover:border-primary/50 hover:bg-card/80'

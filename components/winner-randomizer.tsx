@@ -1,78 +1,39 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Crown, Sparkles, RotateCcw, Play } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Confetti } from './confetti'
+import { FunnelVortex } from './funnel-vortex'
 import { formatDate, type Comment } from '@/lib/comments'
 
 type Phase = 'idle' | 'spinning' | 'done'
 
 export function WinnerRandomizer({ participants }: { participants: Comment[] }) {
   const [phase, setPhase] = useState<Phase>('idle')
-  const [index, setIndex] = useState(0)
   const [winner, setWinner] = useState<Comment | null>(null)
-  const timeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const names = participants
 
-  const clear = useCallback(() => {
-    if (timeout.current) clearTimeout(timeout.current)
-    timeout.current = null
-  }, [])
-
-  useEffect(() => () => clear(), [clear])
-
   const spin = useCallback(() => {
     if (names.length === 0) return
-    clear()
-    setWinner(null)
+    const w = names[Math.floor(Math.random() * names.length)]
+    setWinner(w)
     setPhase('spinning')
+  }, [names])
 
-    const len = names.length
-    const winnerIndex = Math.floor(Math.random() * len)
-    // Two bounded phases keep the animation ~4s regardless of list size.
-    let fastLeft = 32 + Math.floor(Math.random() * 12) // fast spins
-    const decelSteps = 16 // slowing steps that land exactly on the winner
-    const decelStart = ((winnerIndex - (decelSteps - 1)) % len + len) % len
-    let k = 0
-    let current = index
-    let delay = 40
-
-    const step = () => {
-      if (fastLeft > 0) {
-        current = (current + 1) % len
-        setIndex(current)
-        fastLeft--
-        timeout.current = setTimeout(step, delay)
-        return
-      }
-      // deceleration phase: walk toward the winner while slowing down
-      const idx = (decelStart + k) % len
-      setIndex(idx)
-      if (k >= decelSteps - 1) {
-        setWinner(names[winnerIndex])
-        setPhase('done')
-        return
-      }
-      k++
-      delay *= 1.16
-      timeout.current = setTimeout(step, delay)
-    }
-
-    timeout.current = setTimeout(step, delay)
-  }, [names, index, clear])
+  const handleComplete = useCallback(() => {
+    setPhase('done')
+  }, [])
 
   const reset = useCallback(() => {
-    clear()
     setWinner(null)
     setPhase('idle')
-  }, [clear])
+  }, [])
 
   if (names.length === 0) return null
 
   const len = names.length
-  const at = (offset: number) => names[(((index + offset) % len) + len) % len]
 
   return (
     <section className="relative overflow-hidden rounded-3xl border border-border bg-card">
@@ -87,36 +48,16 @@ export function WinnerRandomizer({ participants }: { participants: Comment[] }) 
           Рандомайзер победителя
         </div>
 
-        {phase !== 'done' && (
-          <div className="relative w-full max-w-md">
-            {/* reel window */}
-            <div className="relative h-44 overflow-hidden rounded-2xl border border-border bg-background/60">
-              {/* selector line */}
-              <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 h-14 -translate-y-1/2 rounded-lg border border-primary/50 bg-primary/5" />
-              {/* fade edges */}
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-14 bg-gradient-to-b from-background to-transparent" />
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-14 bg-gradient-to-t from-background to-transparent" />
-
-              <div className="flex h-full flex-col items-center justify-center">
-                {[-1, 0, 1].map((offset) => {
-                  const c = at(offset)
-                  const isCenter = offset === 0
-                  return (
-                    <div
-                      key={offset}
-                      className={`flex h-14 items-center justify-center px-4 ${
-                        isCenter
-                          ? 'text-2xl font-bold text-primary'
-                          : 'text-base text-muted-foreground/50'
-                      }`}
-                    >
-                      <span className="max-w-[16rem] truncate">@{c.username}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+        {phase === 'idle' && (
+          <div className="flex h-64 w-full max-w-md items-center justify-center rounded-2xl border border-dashed border-border bg-background/40 sm:h-72">
+            <p className="max-w-xs text-pretty text-sm text-muted-foreground">
+              Нажмите кнопку — все участники закружатся в воронке, и она вытянет одного победителя.
+            </p>
           </div>
+        )}
+
+        {phase === 'spinning' && winner && (
+          <FunnelVortex participants={names} winner={winner} onComplete={handleComplete} />
         )}
 
         {phase === 'done' && winner && (
@@ -146,14 +87,9 @@ export function WinnerRandomizer({ participants }: { participants: Comment[] }) 
 
         <div className="flex flex-wrap items-center justify-center gap-3">
           {phase !== 'done' ? (
-            <Button
-              size="lg"
-              onClick={spin}
-              disabled={phase === 'spinning'}
-              className="gap-2"
-            >
+            <Button size="lg" onClick={spin} disabled={phase === 'spinning'} className="gap-2">
               <Play className="size-4" aria-hidden="true" />
-              {phase === 'spinning' ? 'Выбираем…' : 'Выбрать победителя'}
+              {phase === 'spinning' ? 'Воронка крутится…' : 'Выбрать победителя'}
             </Button>
           ) : (
             <>
