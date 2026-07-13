@@ -1,23 +1,87 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+import { Trophy, Users, MessageSquare, RefreshCw } from 'lucide-react'
+import { LoadingScreen } from '@/components/loading-screen'
+import { FileUpload } from '@/components/file-upload'
+import { WinnerRandomizer } from '@/components/winner-randomizer'
+import { CommentsList } from '@/components/comments-list'
+import { PoweredBy } from '@/components/powered-by'
+import { Button } from '@/components/ui/button'
+import { dedupeByUsername, type ParsedResult } from '@/lib/comments'
+
 export default function Page() {
+  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<ParsedResult | null>(null)
+
+  const unique = useMemo(
+    () => (data ? dedupeByUsername(data.comments) : []),
+    [data],
+  )
+
+  if (loading) {
+    return <LoadingScreen onDone={() => setLoading(false)} />
+  }
+
+  if (!data) {
+    return <FileUpload onLoaded={setData} />
+  }
+
+  const stats = [
+    { label: 'Всего комментариев', value: data.comments.length, icon: MessageSquare },
+    { label: 'Уникальных участников', value: unique.length, icon: Users },
+    { label: 'Дубликатов убрано', value: data.comments.length - unique.length, icon: Trophy },
+  ]
+
   return (
-    <main className="relative flex min-h-screen items-center justify-center bg-[color:light-dark(#fff,#000)] text-[color:light-dark(#000,#fff)]">
-      <svg
-        aria-hidden="true"
-        className="size-20"
-        fill="none"
-        viewBox="0 0 20 20"
-        xmlns="http://www.w3.org/2000/svg"
-        stroke="currentColor"
-        strokeWidth="0.5"
-      >
-        <path
-          d="M14.2 14.2H17V6.9375C17 4.76288 15.2371 3 13.0625 3H5.8V5.8M14.2 14.2V7.79063L7.79062 14.2H14.2ZM14.2 14.2V17H6.9375C4.76288 17 3 15.2371 3 13.0625V5.8H5.8M5.8 5.8V12.2313L12.2313 5.8H5.8Z"
-          strokeLinejoin="round"
-        />
-      </svg>
-      <p className="absolute left-1/2 top-[calc(50%+56px)] -translate-x-1/2 whitespace-nowrap text-sm font-medium text-muted-foreground">
-        Your v0 generation will show here.
-      </p>
+    <main className="mx-auto max-w-5xl px-4 py-10 sm:py-14">
+      <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="bg-gradient-to-r from-primary via-foreground to-primary bg-clip-text font-display text-4xl tracking-wide text-transparent sm:text-5xl">
+            МОКСУ КОНКУРС
+          </h1>
+          {data.shortcode && (
+            <p className="mt-1 font-mono text-sm text-muted-foreground">#{data.shortcode}</p>
+          )}
+        </div>
+        <Button
+          variant="secondary"
+          onClick={() => setData(null)}
+          className="gap-2 self-start"
+        >
+          <RefreshCw className="size-4" aria-hidden="true" />
+          Другой файл
+        </Button>
+      </header>
+
+      <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {stats.map((s) => (
+          <div
+            key={s.label}
+            className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4"
+          >
+            <div className="flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary">
+              <s.icon className="size-5" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="font-display text-3xl leading-none text-foreground">
+                {s.value.toLocaleString('ru-RU')}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{s.label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mb-10">
+        <WinnerRandomizer participants={unique} />
+      </div>
+
+      <CommentsList comments={unique} />
+
+      <footer className="mt-16 border-t border-border pt-8">
+        <PoweredBy />
+      </footer>
     </main>
   )
 }

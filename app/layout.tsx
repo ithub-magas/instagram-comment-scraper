@@ -1,10 +1,14 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
+import { Inter, Bebas_Neue } from 'next/font/google'
 import './globals.css'
 
+const inter = Inter({ subsets: ['latin', 'cyrillic'], variable: '--font-inter' })
+const bebas = Bebas_Neue({ subsets: ['latin'], weight: '400', variable: '--font-bebas' })
+
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
+  title: 'МОКСУ КОНКУРС — Розыгрыш победителя',
+  description: 'Розыгрыш случайного победителя среди комментариев',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -26,11 +30,8 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'light dark',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: 'white' },
-    { media: '(prefers-color-scheme: dark)', color: 'black' },
-  ],
+  colorScheme: 'dark',
+  themeColor: '#1a1a24',
 }
 
 export default function RootLayout({
@@ -39,8 +40,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className="antialiased">
+    <html lang="ru" className={`${inter.variable} ${bebas.variable} bg-background`}>
+      <body className="font-sans antialiased">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
