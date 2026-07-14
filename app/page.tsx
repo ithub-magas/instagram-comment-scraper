@@ -1,22 +1,71 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Trophy, Users, MessageSquare, RefreshCw } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { BarChart3, Gift, SlidersHorizontal, Users, MessageSquare, RefreshCw } from 'lucide-react'
 import { LoadingScreen } from '@/components/loading-screen'
 import { FileUpload } from '@/components/file-upload'
 import { WinnerRandomizer } from '@/components/winner-randomizer'
 import { CommentsList } from '@/components/comments-list'
+import { CommentRanking } from '@/components/comment-ranking'
+import { SettingsPanel } from '@/components/settings-panel'
 import { PoweredBy } from '@/components/powered-by'
 import { Button } from '@/components/ui/button'
-import { dedupeByUsername, type ParsedResult } from '@/lib/comments'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import {
+  buildParticipantPool,
+  dedupeByUsername,
+  DEFAULT_DRAW_SETTINGS,
+  type DrawSettings,
+  type ParsedResult,
+} from '@/lib/comments'
+
+const SETTINGS_STORAGE_KEY = 'moksu-draw-settings-v1'
+
+function isDrawSettings(value: unknown): value is DrawSettings {
+  if (!value || typeof value !== 'object') return false
+  const settings = value as Partial<DrawSettings>
+  return (
+    (settings.mode === 'unique' || settings.mode === 'all') &&
+    typeof settings.keyword === 'string' &&
+    typeof settings.excludedUsernames === 'string' &&
+    typeof settings.excludeEmpty === 'boolean'
+  )
+}
 
 export default function Page() {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<ParsedResult | null>(null)
+  const [settings, setSettings] = useState<DrawSettings>(DEFAULT_DRAW_SETTINGS)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const [activeSection, setActiveSection] = useState<'draw' | 'ranking'>('draw')
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(SETTINGS_STORAGE_KEY)
+      if (saved) {
+        const parsed: unknown = JSON.parse(saved)
+        if (isDrawSettings(parsed)) setSettings(parsed)
+      }
+    } catch {
+      window.localStorage.removeItem(SETTINGS_STORAGE_KEY)
+    } finally {
+      setSettingsLoaded(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!settingsLoaded) return
+    window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings))
+  }, [settings, settingsLoaded])
 
   const unique = useMemo(
     () => (data ? dedupeByUsername(data.comments) : []),
     [data],
+  )
+
+  const participantPool = useMemo(
+    () => (data ? buildParticipantPool(data.comments, settings) : []),
+    [data, settings],
   )
 
   if (loading) {
@@ -29,8 +78,8 @@ export default function Page() {
 
   const stats = [
     { label: 'Всего комментариев', value: data.comments.length, icon: MessageSquare },
-    { label: 'Уникальных участников', value: unique.length, icon: Users },
-    { label: 'Дубликатов убрано', value: data.comments.length - unique.length, icon: Trophy },
+    { label: 'Уникальных авторов', value: unique.length, icon: Users },
+    { label: 'Допущено к розыгрышу', value: participantPool.length, icon: SlidersHorizontal },
   ]
 
   return (
@@ -44,40 +93,71 @@ export default function Page() {
             <p className="mt-1 font-mono text-sm text-muted-foreground">#{data.shortcode}</p>
           )}
         </div>
-        <Button
-          variant="secondary"
-          onClick={() => setData(null)}
-          className="gap-2 self-start"
-        >
-          <RefreshCw className="size-4" aria-hidden="true" />
-          Другой файл
-        </Button>
+        <div className="flex items-center gap-2 self-start">
+          <SettingsPanel
+            settings={settings}
+            eligibleCount={participantPool.length}
+            onChange={setSettings}
+          />
+          <Button variant="secondary" onClick={() => setData(null)}>
+            <RefreshCw data-icon="inline-start" aria-hidden="true" />
+            Другой файл
+          </Button>
+        </div>
       </header>
 
-      <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {stats.map((s) => (
-          <div
-            key={s.label}
-            className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4"
-          >
-            <div className="flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary">
-              <s.icon className="size-5" aria-hidden="true" />
-            </div>
-            <div>
-              <p className="font-display text-3xl leading-none text-foreground">
-                {s.value.toLocaleString('ru-RU')}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">{s.label}</p>
-            </div>
+      <nav aria-label="Разделы конкурса" className="mb-8">
+        <ToggleGroup
+          value={[activeSection]}
+          onValueChange={(values) => {
+            const section = values[0] as 'draw' | 'ranking' | undefined
+            if (section) setActiveSection(section)
+          }}
+          variant="outline"
+          spacing={2}
+          className="grid w-full grid-cols-2 sm:w-fit"
+        >
+          <ToggleGroupItem value="draw" aria-label="Перейти к розыгрышу">
+            <Gift data-icon="inline-start" aria-hidden="true" />
+            Розыгрыш
+          </ToggleGroupItem>
+          <ToggleGroupItem value="ranking" aria-label="Перейти к рейтингу">
+            <BarChart3 data-icon="inline-start" aria-hidden="true" />
+            Рейтинг
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </nav>
+
+      {activeSection === 'draw' ? (
+        <>
+          <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {stats.map((s) => (
+              <div
+                key={s.label}
+                className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4"
+              >
+                <div className="flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                  <s.icon className="size-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <p className="font-display text-3xl leading-none text-foreground">
+                    {s.value.toLocaleString('ru-RU')}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{s.label}</p>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <div className="mb-10">
-        <WinnerRandomizer participants={unique} />
-      </div>
+          <div className="mb-10">
+            <WinnerRandomizer participants={participantPool} mode={settings.mode} />
+          </div>
 
-      <CommentsList comments={unique} />
+          <CommentsList comments={participantPool} />
+        </>
+      ) : (
+        <CommentRanking comments={data.comments} />
+      )}
 
       <footer className="mt-16 border-t border-border pt-8">
         <PoweredBy />

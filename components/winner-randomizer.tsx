@@ -1,19 +1,29 @@
 'use client'
 
-import { useCallback, useState } from 'react'
-import { Crown, Sparkles, RotateCcw, Play } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Crown, Sparkles, RotateCcw, Play, ListFilter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Confetti } from './confetti'
 import { FunnelVortex } from './funnel-vortex'
-import { formatDate, type Comment } from '@/lib/comments'
+import { formatDate, type Comment, type ParticipantMode } from '@/lib/comments'
 
 type Phase = 'idle' | 'spinning' | 'done'
 
-export function WinnerRandomizer({ participants }: { participants: Comment[] }) {
+type WinnerRandomizerProps = {
+  participants: Comment[]
+  mode: ParticipantMode
+}
+
+export function WinnerRandomizer({ participants, mode }: WinnerRandomizerProps) {
   const [phase, setPhase] = useState<Phase>('idle')
   const [winner, setWinner] = useState<Comment | null>(null)
 
   const names = participants
+
+  useEffect(() => {
+    setWinner(null)
+    setPhase('idle')
+  }, [participants])
 
   const spin = useCallback(() => {
     if (names.length === 0) return
@@ -30,8 +40,6 @@ export function WinnerRandomizer({ participants }: { participants: Comment[] }) 
     setWinner(null)
     setPhase('idle')
   }, [])
-
-  if (names.length === 0) return null
 
   const len = names.length
 
@@ -50,9 +58,18 @@ export function WinnerRandomizer({ participants }: { participants: Comment[] }) 
 
         {phase === 'idle' && (
           <div className="flex h-64 w-full max-w-md items-center justify-center rounded-2xl border border-dashed border-border bg-background/40 sm:h-72">
-            <p className="max-w-xs text-pretty text-sm text-muted-foreground">
-              Нажмите кнопку — все участники закружатся в воронке, и она вытянет одного победителя.
-            </p>
+            {len === 0 ? (
+              <div className="flex max-w-xs flex-col items-center gap-3 text-muted-foreground">
+                <ListFilter className="size-7 text-primary" aria-hidden="true" />
+                <p className="text-pretty text-sm">
+                  По текущим фильтрам нет участников. Измените настройки розыгрыша.
+                </p>
+              </div>
+            ) : (
+              <p className="max-w-xs text-pretty text-sm text-muted-foreground">
+                Нажмите кнопку — все участники закружатся в воронке, и она вытянет одного победителя.
+              </p>
+            )}
           </div>
         )}
 
@@ -87,8 +104,8 @@ export function WinnerRandomizer({ participants }: { participants: Comment[] }) 
 
         <div className="flex flex-wrap items-center justify-center gap-3">
           {phase !== 'done' ? (
-            <Button size="lg" onClick={spin} disabled={phase === 'spinning'} className="gap-2">
-              <Play className="size-4" aria-hidden="true" />
+            <Button size="lg" onClick={spin} disabled={phase === 'spinning' || len === 0}>
+              <Play data-icon="inline-start" aria-hidden="true" />
               {phase === 'spinning' ? 'Воронка крутится…' : 'Выбрать победителя'}
             </Button>
           ) : (
@@ -105,7 +122,9 @@ export function WinnerRandomizer({ participants }: { participants: Comment[] }) 
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Участвует {len.toLocaleString('ru-RU')} уникальных участников
+          {mode === 'unique'
+            ? `${len.toLocaleString('ru-RU')} уникальных участников`
+            : `${len.toLocaleString('ru-RU')} комментариев — каждый отдельный шанс`}
         </p>
       </div>
     </section>

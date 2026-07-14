@@ -77,11 +77,40 @@ export function parseCommentsJson(input: unknown): ParsedResult {
   return { comments, shortcode, scraped_at }
 }
 
+export type ParticipantMode = 'unique' | 'all'
+
+export type DrawSettings = {
+  mode: ParticipantMode
+  keyword: string
+  excludedUsernames: string
+  excludeEmpty: boolean
+}
+
+export const DEFAULT_DRAW_SETTINGS: DrawSettings = {
+  mode: 'unique',
+  keyword: '',
+  excludedUsernames: '',
+  excludeEmpty: false,
+}
+
+function normalizeUsername(username: string): string {
+  return username.trim().replace(/^@+/, '').toLocaleLowerCase('ru-RU')
+}
+
+function parseExcludedUsernames(value: string): Set<string> {
+  return new Set(
+    value
+      .split(/[\s,;]+/)
+      .map(normalizeUsername)
+      .filter(Boolean),
+  )
+}
+
 /** Remove duplicate authors — one participant = one entry (keeps earliest comment). */
 export function dedupeByUsername(comments: Comment[]): Comment[] {
   const map = new Map<string, Comment>()
   for (const c of comments) {
-    const key = c.username.toLowerCase()
+    const key = normalizeUsername(c.username)
     const existing = map.get(key)
     if (!existing) {
       map.set(key, c)
@@ -92,4 +121,55 @@ export function dedupeByUsername(comments: Comment[]): Comment[] {
     }
   }
   return Array.from(map.values())
+}
+
+/** Build the eligible draw pool from comments and user-selected filters. */
+export function buildParticipantPool(
+  comments: Comment[],
+  settings: DrawSettings,
+): Comment[] {
+  const keyword = settings.keyword.trim().toLocaleLowerCase('ru-RU')
+  const excluded = parseExcludedUsernames(settings.excludedUsernames)
+
+  const filtered = comments.filter((comment) => {
+    const text = comment.text.trim()
+    if (settings.excludeEmpty && !text) return false
+    if (keyword && !text.toLocaleLowerCase('ru-RU').includes(keyword)) return false
+    return !excluded.has(normalizeUsername(comment.username))
+  })
+
+  return settings.mode === 'unique' ? dedupeByUsername(filtered) : filtered
+}
+
+export type CommentRankingEntry = {
+  username: string
+  normalizedUsername: string
+  commentCount: number
+}
+
+/** Rank authors by all comments in the source file, independent of draw filters. */
+export function buildCommentRanking(comments: Comment[]): CommentRankingEntry[] {
+  const authors = new Map<string, CommentRankingEntry>()
+
+  for (const comment of comments) {
+    const normalizedUsername = normalizeUsername(comment.username)
+    if (!normalizedUsername) continue
+
+    const existing = authors.get(normalizedUsername)
+    if (existing) {
+      existing.commentCount += 1
+    } else {
+      authors.set(normalizedUsername, {
+        username: comment.username.trim().replace(/^@+/, ''),
+        normalizedUsername,
+        commentCount: 1,
+      })
+    }
+  }
+
+  return Array.from(authors.values()).sort(
+    (a, b) =>
+      b.commentCount - a.commentCount ||
+      a.normalizedUsername.localeCompare(b.normalizedUsername, 'ru'),
+  )
 }
