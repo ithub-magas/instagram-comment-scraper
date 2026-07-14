@@ -140,3 +140,36 @@ export function buildParticipantPool(
 
   return settings.mode === 'unique' ? dedupeByUsername(filtered) : filtered
 }
+
+export type CommentRankingEntry = {
+  username: string
+  normalizedUsername: string
+  commentCount: number
+}
+
+/** Rank authors by all comments in the source file, independent of draw filters. */
+export function buildCommentRanking(comments: Comment[]): CommentRankingEntry[] {
+  const authors = new Map<string, CommentRankingEntry>()
+
+  for (const comment of comments) {
+    const normalizedUsername = normalizeUsername(comment.username)
+    if (!normalizedUsername) continue
+
+    const existing = authors.get(normalizedUsername)
+    if (existing) {
+      existing.commentCount += 1
+    } else {
+      authors.set(normalizedUsername, {
+        username: comment.username.trim().replace(/^@+/, ''),
+        normalizedUsername,
+        commentCount: 1,
+      })
+    }
+  }
+
+  return Array.from(authors.values()).sort(
+    (a, b) =>
+      b.commentCount - a.commentCount ||
+      a.normalizedUsername.localeCompare(b.normalizedUsername, 'ru'),
+  )
+}

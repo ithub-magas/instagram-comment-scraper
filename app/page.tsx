@@ -1,14 +1,16 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { SlidersHorizontal, Users, MessageSquare, RefreshCw } from 'lucide-react'
+import { BarChart3, Gift, SlidersHorizontal, Users, MessageSquare, RefreshCw } from 'lucide-react'
 import { LoadingScreen } from '@/components/loading-screen'
 import { FileUpload } from '@/components/file-upload'
 import { WinnerRandomizer } from '@/components/winner-randomizer'
 import { CommentsList } from '@/components/comments-list'
+import { CommentRanking } from '@/components/comment-ranking'
 import { SettingsPanel } from '@/components/settings-panel'
 import { PoweredBy } from '@/components/powered-by'
 import { Button } from '@/components/ui/button'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import {
   buildParticipantPool,
   dedupeByUsername,
@@ -35,6 +37,7 @@ export default function Page() {
   const [data, setData] = useState<ParsedResult | null>(null)
   const [settings, setSettings] = useState<DrawSettings>(DEFAULT_DRAW_SETTINGS)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const [activeSection, setActiveSection] = useState<'draw' | 'ranking'>('draw')
 
   useEffect(() => {
     try {
@@ -103,30 +106,58 @@ export default function Page() {
         </div>
       </header>
 
-      <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {stats.map((s) => (
-          <div
-            key={s.label}
-            className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4"
-          >
-            <div className="flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary">
-              <s.icon className="size-5" aria-hidden="true" />
-            </div>
-            <div>
-              <p className="font-display text-3xl leading-none text-foreground">
-                {s.value.toLocaleString('ru-RU')}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">{s.label}</p>
-            </div>
+      <nav aria-label="Разделы конкурса" className="mb-8">
+        <ToggleGroup
+          value={[activeSection]}
+          onValueChange={(values) => {
+            const section = values[0] as 'draw' | 'ranking' | undefined
+            if (section) setActiveSection(section)
+          }}
+          variant="outline"
+          spacing={2}
+          className="grid w-full grid-cols-2 sm:w-fit"
+        >
+          <ToggleGroupItem value="draw" aria-label="Перейти к розыгрышу">
+            <Gift data-icon="inline-start" aria-hidden="true" />
+            Розыгрыш
+          </ToggleGroupItem>
+          <ToggleGroupItem value="ranking" aria-label="Перейти к рейтингу">
+            <BarChart3 data-icon="inline-start" aria-hidden="true" />
+            Рейтинг
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </nav>
+
+      {activeSection === 'draw' ? (
+        <>
+          <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {stats.map((s) => (
+              <div
+                key={s.label}
+                className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4"
+              >
+                <div className="flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                  <s.icon className="size-5" aria-hidden="true" />
+                </div>
+                <div>
+                  <p className="font-display text-3xl leading-none text-foreground">
+                    {s.value.toLocaleString('ru-RU')}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{s.label}</p>
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <div className="mb-10">
-        <WinnerRandomizer participants={participantPool} mode={settings.mode} />
-      </div>
+          <div className="mb-10">
+            <WinnerRandomizer participants={participantPool} mode={settings.mode} />
+          </div>
 
-      <CommentsList comments={participantPool} />
+          <CommentsList comments={participantPool} />
+        </>
+      ) : (
+        <CommentRanking comments={data.comments} />
+      )}
 
       <footer className="mt-16 border-t border-border pt-8">
         <PoweredBy />
